@@ -76,10 +76,22 @@ _Avoid_ : aide, astuce, coup de pouce
 La récompense gagnée pour chaque exercice mené à son terme ; moins nombreux avec des indices, jamais nuls.
 _Avoid_ : XP, score, note
 
+**Total** :
+La somme des points de toutes les séances d'un élève, rattachée à son prénom.
+_Avoid_ : score global, cumul, XP total
+
 **Série** :
 Le nombre d'exercices réussis d'affilée.
 _Avoid_ : combo, streak
 
 **Badge** :
-Une distinction obtenue en franchissant une étape précise (par exemple un premier exercice sans indice).
+Une distinction obtenue une seule fois, en franchissant une étape précise (par exemple un premier exercice sans indice).
 _Avoid_ : trophée, médaille, succès
+
+**Collection** :
+L'ensemble des badges qu'un élève a obtenus depuis sa première séance.
+_Avoid_ : inventaire, palmarès
+
+**Réussite sans aide** :
+La part des exercices réussis sans indice ni correction ; l'indicateur d'autonomie suivi par le prof.
+_Avoid_ : taux de réussite, score d'autonomie

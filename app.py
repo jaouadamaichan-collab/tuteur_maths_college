@@ -14,7 +14,9 @@ import streamlit as st
 
 import ecran
 import exercices as E
+import progression as P
 import seance as S
+from tuteur import CENTRES_INTERET
 
 # ════════════════════════════════════════════════════════════
 # ⚙️  CONFIGURATION
@@ -362,7 +364,8 @@ def sauvegarder_seance(s):
         "nb_echanges": s["nb_questions"],
         "phase_finale": "bilan",
         "bilan": s["bilan"] or "",
-        "messages": json.dumps({"resultats": s["resultats"], "stats": s["stats"], "points": s["points"]}, ensure_ascii=False),
+        "messages": json.dumps({"resultats": s["resultats"], "stats": s["stats"], "points": s["points"],
+                                "badges": s["badges_nouveaux"], "interets": profil.get("interets", [])}, ensure_ascii=False),
         "date_session": datetime.now().isoformat(),
     }
     try:
@@ -388,6 +391,18 @@ def charger_sessions_db(nom):
         return []
 
 
+def charger_progression(nom):
+    """Cumul de toutes les séances enregistrées de l'élève (points, badges, réussite sans aide)."""
+    sb = get_supabase()
+    if not sb or not nom:
+        return P.cumul([])
+    try:
+        resp = sb.table("sessions_college").select("messages, date_session").eq("eleve_nom", nom).limit(500).execute()
+        return P.cumul(resp.data or [])
+    except Exception:
+        return P.cumul([])
+
+
 def charger_tous_eleves_db():
     sb = get_supabase()
     if not sb:
@@ -395,7 +410,7 @@ def charger_tous_eleves_db():
     try:
         resp = (
             sb.table("sessions_college")
-            .select("eleve_nom, classe, chapitre, nb_exercices, phase_finale, bilan, date_session")
+            .select("eleve_nom, classe, chapitre, nb_exercices, phase_finale, bilan, date_session, messages")
             .order("date_session", desc=True)
             .limit(200).execute()
         )
@@ -436,6 +451,27 @@ def get_api_key():
 # 📊  TABLEAU DE BORD PROFESSEUR
 # ════════════════════════════════════════════════════════════
 
+def synthese_par_eleve(sessions):
+    """Une ligne par élève : cumul de ses séances (points, badges, réussite sans aide, formats difficiles)."""
+    par_eleve = {}
+    for s in sessions:  # triées de la plus récente à la plus ancienne
+        par_eleve.setdefault(s.get("eleve_nom", "?"), []).append(s)
+    lignes = []
+    for nom, seances in par_eleve.items():
+        c = P.cumul(seances)
+        lignes.append({
+            "Élève": nom,
+            "Classe": seances[0].get("classe", ""),
+            "Séances": c["seances"],
+            "Points": c["points"],
+            "Badges": " ".join(P.BADGES[b][0] for b in c["badges"]),
+            "Sans aide": f"{c['taux_sans_aide']} %" if c["taux_sans_aide"] is not None else "—",
+            "Formats où il bloque": ", ".join(E.NOMS_FORMATS[f] for f in c["formats_difficiles"]) or "—",
+            "Dernière séance": str(seances[0].get("date_session", ""))[:10],
+        })
+    return sorted(lignes, key=lambda l: l["Élève"].lower())
+
+
 def afficher_dashboard_prof():
     sessions = charger_tous_eleves_db()
     if not sessions:
@@ -446,24 +482,19 @@ def afficher_dashboard_prof():
     total_exercices = sum(s.get("nb_exercices", 0) for s in sessions)
 
     col1, col2, col3 = st.columns(3)
-    with col1:
-        st.markdown(f"""<div class="dash-metric">
-            <div class="number">{len(eleves_uniques)}</div>
-            <div class="label">Élèves</div>
-        </div>""", unsafe_allow_html=True)
-    with col2:
-        st.markdown(f"""<div class="dash-metric">
-            <div class="number">{len(sessions)}</div>
-            <div class="label">Séances</div>
-        </div>""", unsafe_allow_html=True)
-    with col3:
-        st.markdown(f"""<div class="dash-metric">
-            <div class="number">{total_exercices}</div>
-            <div class="label">Exercices</div>
+    for col, valeur, label in ((col1, len(eleves_uniques), "Élèves"), (col2, len(sessions), "Séances"), (col3, total_exercices, "Exercices")):
+        col.markdown(f"""<div class="dash-metric">
+            <div class="number">{valeur}</div>
+            <div class="label">{label}</div>
         </div>""", unsafe_allow_html=True)
 
     st.markdown("")
+    st.markdown("#### 👥 Vue par élève")
+    st.dataframe(synthese_par_eleve(sessions), hide_index=True, use_container_width=True)
+    st.caption("« Sans aide » : part des exercices réussis sans indice ni correction, sur les séances en exercices structurés. "
+               "« Formats où il bloque » : formats où l'élève a le plus souvent eu besoin d'aide ou de plusieurs essais.")
 
+    st.markdown("#### 🗂️ Détail des séances")
     eleve_filtre = st.selectbox(
         "Filtrer par élève", ["Tous les élèves"] + sorted(eleves_uniques)
     )
@@ -476,13 +507,24 @@ def afficher_dashboard_prof():
         classe = s.get("classe", "")
         chapitre = s.get("chapitre", "?")
         nb_ex = s.get("nb_exercices", 0)
-        phase = s.get("phase_finale", "?")
         bilan = s.get("bilan", "")
+        contenu = P.lire_contenu(s)
+        stats = contenu.get("stats") or {}
 
-        phase_emoji = {"diagnostic": "🔍", "entrainement": "🎯", "bilan": "✅"}.get(phase, "📝")
-
-        with st.expander(f"{phase_emoji}  **{nom}** · {chapitre} — {date}"):
-            st.markdown(f"**Classe :** {classe} · **Exercices :** {nb_ex} · **Phase :** {phase}")
+        with st.expander(f"✅  **{nom}** · {chapitre} — {date}"):
+            st.markdown(f"**Classe :** {classe} · **Exercices :** {nb_ex}")
+            if stats:
+                st.markdown(
+                    f"**Réussis :** {stats.get('reussis', 0)} / {stats.get('exercices', 0)} · "
+                    f"**sans aide :** {stats.get('sans_aide', 0)} · **avec indices :** {stats.get('avec_indices', 0)} · "
+                    f"**correction vue :** {stats.get('correction_vue', 0)} · **points :** {contenu.get('points', 0)}"
+                )
+                difficiles = [E.NOMS_FORMATS[f] for f in stats.get("formats_difficiles") or [] if f in E.NOMS_FORMATS]
+                notions = stats.get("notions_difficiles") or []
+                if difficiles or notions:
+                    st.markdown("**À surveiller :** " + " · ".join(difficiles + notions))
+            if contenu.get("badges"):
+                st.markdown("**Badges gagnés :** " + " · ".join(P.libelle(b) for b in contenu["badges"] if b in P.BADGES))
             if bilan:
                 st.info(bilan)
 
@@ -491,10 +533,13 @@ def afficher_dashboard_prof():
         st.markdown(f"#### 📈 Progression de {eleve_filtre}")
         rows = []
         for s in reversed(sessions):
+            stats = P.lire_contenu(s).get("stats") or {}
             rows.append({
                 "Date": str(s.get("date_session", ""))[:10],
                 "Chapitre": s.get("chapitre", "?"),
                 "Exercices": s.get("nb_exercices", 0),
+                "Sans aide": stats.get("sans_aide", "—"),
+                "Points": P.lire_contenu(s).get("points", "—"),
             })
         st.table(rows)
 
@@ -547,6 +592,10 @@ def main():
             p = seance["profil"]
             st.markdown(f"👤 **{p['nom']}** · {p['classe']}")
             st.markdown(f"📖 {p['chapitre']}")
+            st.markdown(f"🏆 **{S.total_points(seance)} points** au total")
+            collection = S.badges(seance)
+            if collection:
+                st.markdown("  \n".join(P.libelle(b) for b in collection))
             st.divider()
             if not seance["termine"]:
                 btn_bilan = st.button("🏁 Terminer et voir mon bilan", use_container_width=True, type="primary")
@@ -623,6 +672,10 @@ def main():
                     max_chars=150,
                     height=68,
                 ).strip()
+            interets = st.multiselect(
+                "❤️ Ce que tu aimes (jusqu'à 3) : tes exercices seront des missions sur ces thèmes",
+                CENTRES_INTERET, max_selections=3, placeholder="Choisis 1 à 3 centres d'intérêt",
+            )
             c3, c4 = st.columns(2)
             objectif = c3.text_area("🎯 Objectif (facultatif)", placeholder="Ex: Réviser Pythagore pour le contrôle", height=68)
             with c4:
@@ -631,8 +684,13 @@ def main():
             programme = st.selectbox("🌍 Programme", PAYS_PROGRAMMES)
 
             sessions_passees = charger_sessions_db(nom) if sb_ok and nom else []
+            progression = charger_progression(nom) if sb_ok and nom else P.cumul([])
             if sessions_passees:
-                st.caption(f"📂 {len(sessions_passees)} séance(s) précédente(s) trouvée(s) : le tuteur en tiendra compte.")
+                collection = " ".join(P.libelle(b) for b in progression["badges"])
+                st.success(
+                    f"🏆 Bon retour {nom} ! Tu as **{progression['points']} points** "
+                    f"en {progression['seances']} séance(s)." + (f"  \nTes badges : {collection}" if collection else "")
+                )
             btn_start = st.button("🚀 Commencer la séance", use_container_width=True, type="primary")
 
         if btn_start and theme_libre and not chapitre:
@@ -645,10 +703,11 @@ def main():
                 "classe": classe, "programme": programme,
                 "chapitre": chapitre,
                 "theme_libre": theme_libre,
+                "interets": interets,
                 "objectif": objectif or "Réviser et progresser",
                 "temps": temps,
             }
-            seance = S.nouvelle_seance(profil, resume_historique(sessions_passees))
+            seance = S.nouvelle_seance(profil, resume_historique(sessions_passees), progression)
             with st.spinner("🧠 Le tuteur prépare ton premier exercice…"):
                 S.preparer_exercice(seance, get_api_key())
             st.session_state.seance = seance

@@ -208,3 +208,57 @@ def test_solides_au_programme():
     assert "Pyramides et cônes (volumes)" in chapitres["4ème"]
     assert any("sphère" in c for c in chapitres["3ème"])
     assert chapitres["Autre"] == []
+
+
+# ───────────── Étape 3 : progression, centres d'intérêt, espace prof ─────────────
+
+def seance_complete(at, interets=()):
+    at.text_input[0].input("Inès")
+    at.selectbox[0].set_value("4ème").run()
+    at.selectbox[1].set_value("Pyramides et cônes (volumes)").run()
+    if interets:
+        at.multiselect[0].set_value(list(interets)).run()
+    at.select_slider[0].set_value("15 min").run()
+    bouton(at, "🚀 Commencer").click().run()
+    ok(at)
+    for n in range(6):
+        repondre_juste(at)
+        bouton(at, "Voir mon bilan" if n == 5 else "Exercice suivant").click().run()
+        ok(at)
+    return at.session_state["seance"]
+
+
+def test_deux_seances_points_et_badges_cumules(base):
+    at = lancer()
+    s1 = seance_complete(at, interets=["⚽ Sport"])
+    assert "seance_terminee" in s1["badges_nouveaux"]
+    assert any("Nouveaux badges" in m.value for m in at.success)
+    assert "centre d'intérêt de l'élève : sport" in appels_de("écrire UN exercice")[0]["messages"][0]["content"]
+    enregistre = json.loads(base.tables["sessions_college"][0]["messages"])
+    assert enregistre["badges"] == s1["badges_nouveaux"] and enregistre["interets"] == ["⚽ Sport"]
+
+    # Deuxième séance, même prénom : accueil personnalisé, total cumulé, badges non redonnés
+    bouton(at.sidebar, "🗑️ Nouvelle séance").click().run()
+    ok(at)
+    at.text_input[0].input("Inès").run()
+    accueil = " ".join(m.value for m in at.success)
+    assert f"Tu as **{s1['points']} points**" in accueil and "Séance terminée" in accueil
+    s2 = seance_complete(at)
+    assert s2["points_avant"] == s1["points"]
+    assert not set(s2["badges_nouveaux"]) & set(s1["badges_nouveaux"])
+    assert any(f"Ton total : {s1['points'] + s2['points']} points" in c.value for c in at.caption)
+    assert len(base.tables["sessions_college"]) == 2                    # la deuxième séance est bien enregistrée
+
+
+def test_espace_prof_vue_par_eleve(base):
+    at = lancer()
+    s = seance_complete(at)
+    at.sidebar.radio[0].set_value(at.sidebar.radio[0].options[1]).run()
+    at.text_input[0].input("prof2024").run()
+    ok(at)
+    vue = at.dataframe[0].value
+    ligne = vue[vue["Élève"] == "Inès"].iloc[0]
+    assert ligne["Points"] == s["points"] and ligne["Séances"] == 1 and ligne["Sans aide"] == "100 %"
+    assert "🏁" in ligne["Badges"]
+    detail = " ".join(m.value for m in at.markdown)
+    assert "**Réussis :** 6 / 6" in detail and "Badges gagnés" in detail

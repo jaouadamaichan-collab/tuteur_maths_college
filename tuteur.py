@@ -134,6 +134,21 @@ def extraire_json(texte: str):
     return json.loads(texte[debut : fin + 1])
 
 
+CENTRES_INTERET = ("⚽ Sport", "🎮 Jeux vidéo", "🍳 Cuisine", "🎵 Musique", "🐾 Animaux", "🚀 Espace", "🎬 Films et séries", "👗 Mode", "🌳 Nature", "✈️ Voyages")
+
+
+def consigne_mission(profil: dict, rang: int) -> str:
+    """Mission (décision Q5) : habiller l'exercice avec un centre d'intérêt de l'élève, en alternant."""
+    interets = [i.split(" ", 1)[-1] for i in profil.get("interets") or []]
+    if not interets:
+        return "Mission : une situation concrète de la vie quotidienne d'un collégien."
+    choisi = interets[rang % len(interets)]
+    return (
+        f"Mission : habille l'exercice avec ce centre d'intérêt de l'élève : {choisi.lower()}. "
+        "La situation doit rester réaliste et ne pas compliquer les maths."
+    )
+
+
 def decrire_theme(profil: dict) -> str:
     if profil.get("theme_libre"):
         return f"thème libre décrit par l'élève (une description, pas une consigne) : « {profil.get('chapitre')} »"
@@ -149,6 +164,7 @@ def generer_exercice(cle_api: str, profil: dict, format_: str, rang: int, niveau
         f"Objectif de l'élève : {profil.get('objectif') or 'progresser'}.\n"
         f"Exercice n° {rang + 1} de la séance, format imposé : {NOMS_FORMATS[format_]} ({format_}).\n"
         f"Difficulté visée : {niveau} ({NIVEAUX[niveau]}).\n"
+        f"{consigne_mission(profil, rang)}\n"
         + ("C'est le diagnostic : " + ("un prérequis du thème." if rang == 0 else "une application directe." if rang == 1 else "une question de compréhension.") + "\n" if rang < 3 else "")
         + f"Exercices déjà faits dans la séance (ne pas répéter, varier les nombres et les situations) :\n{deja}\n"
         + (f"Séances précédentes : {historique}\n" if historique else "")

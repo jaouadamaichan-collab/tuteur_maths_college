@@ -7,6 +7,7 @@ import re
 import streamlit as st
 
 import exercices as E
+import progression as P
 import seance as S
 from figures import dessiner
 
@@ -24,7 +25,7 @@ def _image_figure(cle: str, figure: dict) -> bytes:
 
 
 def compteurs(s: dict) -> None:
-    blocs = (("⭐ Points", s["points"]), ("🔥 Série", s["serie"]), ("✅ Réussis", sum(1 for r in s["resultats"] if r["reussi"])))
+    blocs = (("⭐ Points", s["points"]), ("🔥 Série", s["serie"]), ("🏅 Badges", len(S.badges(s))))
     st.markdown(
         "<div style='display:flex;gap:.6rem;flex-wrap:nowrap;margin-bottom:.4rem'>"
         + "".join(
@@ -174,16 +175,34 @@ def bilan(s: dict) -> None:
     if not st.session_state.get("_ballons_montres"):
         st.balloons()
         st.session_state["_ballons_montres"] = True
-    st.markdown(f"## 🎉 Séance terminée : {s['points']} points")
+    st.markdown(f"## 🎉 Séance terminée : +{s['points']} points")
+    st.caption(f"🏆 Ton total : {S.total_points(s)} points")
     c1, c2, c3 = st.columns(3)
     c1.metric("Exercices réussis", f"{st_['reussis']} / {st_['exercices']}")
     c2.metric("Sans aucune aide", st_["sans_aide"])
     c3.metric("Avec des indices", st_["avec_indices"])
+    if s["badges_nouveaux"]:
+        st.success("Nouveaux badges : " + " · ".join(f"**{P.libelle(b)}**" for b in s["badges_nouveaux"]))
     st.info(brut(s["bilan"]))
+    with st.expander(f"🏅 Ma collection de badges ({len(S.badges(s))} sur {len(P.BADGES)})"):
+        for b, (emoji, nom, comment) in P.BADGES.items():
+            if b in S.badges(s):
+                st.markdown(f"{emoji} **{nom}** · {comment}")
+            else:
+                st.markdown(f"🔒 {nom} · *{comment}*")
+
+
+def feter_badges(s: dict) -> None:
+    """Annonce chaque nouveau badge une seule fois (décision Q10 : célébration)."""
+    while s["a_feter"]:
+        b = s["a_feter"].pop(0)
+        emoji, nom, comment = P.BADGES[b]
+        st.toast(f"Nouveau badge : **{nom}** · {comment}", icon=emoji)
 
 
 def afficher(s: dict, cle_api: str, sauvegarder) -> None:
     st.session_state["_sauvegarder"] = sauvegarder
+    feter_badges(s)
     if s["termine"]:
         bilan(s)
     else:
