@@ -35,3 +35,8 @@ Noter aussi : la classe de l'élève, et s'il a demandé des indices.
 
 La version gagnante (ou un mélange : « les points de A avec l'histoire de C ») sera réécrite proprement
 dans l'app. Cette branche restera comme trace du test et ne sera jamais fusionnée dans `main`.
+
+## Verdict (11/11/2026)
+
+**Version A (carte de jeu), à l'unanimité** des élèves qui ont testé. Elle devient l'écran d'exercice de
+l'étape 2 (exercices structurés), réécrite proprement dans `main` ; B et C restent ici comme trace.
