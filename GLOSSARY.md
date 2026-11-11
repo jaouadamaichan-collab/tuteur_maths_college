@@ -43,8 +43,16 @@ Une question unique posée à l'élève, avec un format, un énoncé et une rép
 _Avoid_ : question (pour l'ensemble), problème, activité
 
 **Format** :
-La forme d'interaction d'un exercice : QCM, réponse numérique, vrai ou faux, texte à trous, étapes à remettre dans l'ordre. Choisi par l'app, jamais deux fois de suite.
+La forme d'interaction d'un exercice, choisie par l'app, jamais deux fois de suite. Un format est fermé ou ouvert.
 _Avoid_ : type d'exercice, modèle
+
+**Format fermé** :
+Un format dont la réponse attendue est unique, corrigé instantanément par l'app : QCM, réponse numérique, vrai ou faux, texte à trous, étapes à remettre dans l'ordre.
+_Avoid_ : exercice automatique, question fermée
+
+**Format ouvert** :
+La réponse rédigée : une justification courte que l'élève écrit et que le tuteur corrige. Proposé environ une fois sur cinq.
+_Avoid_ : question ouverte, rédaction, texte libre
 
 **Figure** :
 Un dessin géométrique coté qui accompagne un exercice, quel que soit son format (cône, cylindre, triangle rectangle…). Ce n'est pas un format.
