@@ -76,10 +76,12 @@ CHAPITRES = {
     "Autre": [],
 }
 
-# Option ajoutée à chaque liste : l'élève décrit lui-même son thème.
-AUTRE_THEME = "✏️ Autre thème (je l'écris)"
-# Et l'exercice modèle : l'élève photographie un exercice fait en classe (ADR 0002).
-PHOTO_THEME = "📸 Un exercice fait en classe (photo)"
+# Trois façons de choisir le thème, visibles d'emblée sur l'accueil (pas cachées au bas d'une liste) :
+# un chapitre de la liste, l'exercice modèle photographié (ADR 0002), ou un thème libre écrit par l'élève.
+MODE_CHAPITRE = "📖 Un chapitre"
+PHOTO_THEME = "📸 Mon exercice de classe"
+AUTRE_THEME = "✏️ Un autre thème"
+MODES_THEME = [MODE_CHAPITRE, PHOTO_THEME, AUTRE_THEME]
 
 PAYS_PROGRAMMES = [
     "France (Éducation Nationale)",
@@ -718,10 +720,13 @@ def main():
             c1, c2 = st.columns(2)
             nom = c1.text_input("👤 Ton prénom", placeholder="Ex: Sarah")
             classe = c2.selectbox("📚 Classe", list(CHAPITRES.keys()))
-            chapitre = st.selectbox("📖 Chapitre", CHAPITRES.get(classe, []) + [PHOTO_THEME, AUTRE_THEME])
-            theme_libre = chapitre == AUTRE_THEME
-            par_photo = chapitre == PHOTO_THEME
-            modele = ""
+            mode = st.segmented_control("🧭 Sur quoi tu veux t'entraîner ?", MODES_THEME, default=MODE_CHAPITRE,
+                                        key="mode_theme") or MODE_CHAPITRE
+            theme_libre = mode == AUTRE_THEME
+            par_photo = mode == PHOTO_THEME
+            modele, chapitre = "", ""
+            if mode == MODE_CHAPITRE:
+                chapitre = st.selectbox("📖 Chapitre", CHAPITRES.get(classe, []))
             if par_photo:
                 modele, chapitre = zone_photo()
             if theme_libre:
