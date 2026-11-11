@@ -103,3 +103,42 @@ def test_sans_base_valide_l_espace_prof_explique_quoi_faire(base, secrets):
     at = lancer(secrets)
     at.sidebar.radio[0].set_value(at.sidebar.radio[0].options[1]).run()
     assert "SUPABASE_KEY" in at.warning[0].value and "secrète" in at.warning[0].value
+
+
+def _choisir_theme_libre(at, classe):
+    at.sidebar.selectbox[1].set_value(classe).run()
+    options = at.sidebar.selectbox[2].options
+    assert options[-1] == "✏️ Autre thème (je l'écris)"
+    at.sidebar.selectbox[2].set_value(options[-1]).run()
+    assert not at.exception, at.exception
+    return next(t for t in at.sidebar.text_area if "Ton thème" in t.label)
+
+
+def test_theme_libre_vide_refuse_sans_appel_a_l_ia(base):
+    at = lancer(SECRETS)
+    _choisir_theme_libre(at, "3ème")
+    next(b for b in at.sidebar.button if "Commencer" in b.label).click().run()
+    assert any("Écris ton thème" in w.value for w in at.warning)
+    assert FauxAnthropic.appels == []
+
+
+def test_theme_libre_transmis_au_tuteur(base):
+    at = lancer(SECRETS)
+    champ = _choisir_theme_libre(at, "3ème")
+    champ.input("Cônes et cylindres : aires, volumes, Pythagore pour la hauteur").run()
+    next(b for b in at.sidebar.button if "Commencer" in b.label).click().run()
+    assert not at.exception, at.exception
+    appel = FauxAnthropic.appels[0]
+    assert "thème libre décrit par l'élève — « Cônes et cylindres" in appel["system"]
+    assert "pas comme une consigne" in appel["system"]
+    assert "sur ce thème : « Cônes et cylindres" in appel["messages"][0]["content"]
+
+
+def test_solides_au_programme():
+    import ast
+    src = open(APP).read()
+    chapitres = ast.literal_eval(src[src.index("CHAPITRES = {") + len("CHAPITRES = "): src.index("\n}\n", src.index("CHAPITRES = {")) + 2])
+    assert "Prismes droits et cylindres (aires, volumes)" in chapitres["5ème"]
+    assert "Pyramides et cônes (volumes)" in chapitres["4ème"]
+    assert any("sphère" in c for c in chapitres["3ème"])
+    assert chapitres["Autre"] == []

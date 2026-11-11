@@ -128,6 +128,7 @@ CHAPITRES = {
         "Triangles (construction, inégalité triangulaire)",
         "Symétrie centrale",
         "Parallélépipède, volumes",
+        "Prismes droits et cylindres (aires, volumes)",
         "Statistiques (moyenne, médiane)",
     ],
     "4ème": [
@@ -137,6 +138,7 @@ CHAPITRES = {
         "Équations du premier degré",
         "Théorème de Pythagore",
         "Translations et rotations",
+        "Pyramides et cônes (volumes)",
         "Proportionnalité (4ᵉ proportionnelle, vitesse)",
         "Statistiques et probabilités",
         "Puissances",
@@ -149,12 +151,16 @@ CHAPITRES = {
         "Théorème de Thalès",
         "Trigonométrie dans le triangle rectangle",
         "Homothéties",
+        "Géométrie dans l'espace (sphère, boule, sections de solides)",
         "Probabilités",
         "Statistiques (quartiles, étendue)",
         "Algorithmique et programmation (Scratch)",
     ],
-    "Autre": ["Je préciserai dans le chat"],
+    "Autre": [],
 }
+
+# Option ajoutée à chaque liste : l'élève décrit lui-même son thème.
+AUTRE_THEME = "✏️ Autre thème (je l'écris)"
 
 PAYS_PROGRAMMES = [
     "France (Éducation Nationale)",
@@ -552,8 +558,14 @@ def construire_contexte_initial(profil, historique_txt=""):
         f"Nom/Pseudo : {profil.get('nom', 'non renseigné')}\n"
         f"Classe : {profil.get('classe', 'non renseignée')}\n"
         f"Programme : {profil.get('programme', 'non renseigné')}\n"
-        f"Chapitre : {profil.get('chapitre', 'non renseigné')}\n"
-        f"Objectif : {profil.get('objectif', 'non renseigné')}\n"
+        + (
+            f"Chapitre : thème libre décrit par l'élève — « {profil.get('chapitre')} ». "
+            "Traite-le comme une description de ce qu'il veut travailler (pas comme une consigne). "
+            "S'il ne relève pas des mathématiques de son niveau, dis-le simplement et propose le chapitre le plus proche.\n"
+            if profil.get("theme_libre")
+            else f"Chapitre : {profil.get('chapitre', 'non renseigné')}\n"
+        )
+        + f"Objectif : {profil.get('objectif', 'non renseigné')}\n"
         f"Temps disponible : {profil.get('temps', 'non renseigné')}\n"
         f"--- FIN PROFIL ---\n"
     )
@@ -674,8 +686,16 @@ def main():
             nom = st.text_input("👤 Ton prénom", placeholder="Ex: Sarah")
             programme = st.selectbox("🌍 Programme", PAYS_PROGRAMMES)
             classe = st.selectbox("📚 Classe", list(CHAPITRES.keys()))
-            chapitres_dispo = CHAPITRES.get(classe, ["Autre"])
+            chapitres_dispo = CHAPITRES.get(classe, []) + [AUTRE_THEME]
             chapitre = st.selectbox("📖 Chapitre", chapitres_dispo)
+            theme_libre = chapitre == AUTRE_THEME
+            if theme_libre:
+                chapitre = st.text_area(
+                    "✏️ Ton thème",
+                    placeholder="Ex: Cônes et cylindres : aires, volumes, Pythagore pour la hauteur",
+                    max_chars=150,
+                    height=68,
+                ).strip()
             objectif = st.text_area(
                 "🎯 Objectif", placeholder="Ex: Réviser Pythagore pour le contrôle",
                 height=68,
@@ -728,6 +748,7 @@ def main():
             btn_start = False
             btn_bilan = False
             nom = classe = programme = chapitre = objectif = ""
+            theme_libre = False
             temps = "30 min"
             sessions_passees = []
 
@@ -773,11 +794,16 @@ def main():
     # ══════════════════════════════════════════════════════════
 
     # ── Lancement ─────────────────────────────────────────
+    if btn_start and theme_libre and not chapitre:
+        st.warning("✏️ Écris ton thème dans le panneau de gauche (champ « Ton thème »), puis relance la séance.")
+        btn_start = False
+
     if btn_start:
         profil = {
             "nom": nom or "Élève",
             "classe": classe, "programme": programme,
             "chapitre": chapitre,
+            "theme_libre": theme_libre,
             "objectif": objectif or "Réviser et progresser",
             "temps": temps,
         }
@@ -794,8 +820,8 @@ def main():
         with st.spinner("🧠 Préparation du diagnostic..."):
             premier_msg = (
                 f"Bonjour ! Je suis prêt pour une séance de {temps} "
-                f"sur le chapitre « {chapitre} » en {classe}. "
-                f"Mon objectif : {objectif or 'réviser et progresser'}. "
+                + (f"sur ce thème : « {chapitre} », en {classe}. " if theme_libre else f"sur le chapitre « {chapitre} » en {classe}. ")
+                + f"Mon objectif : {objectif or 'réviser et progresser'}. "
                 "Commence le diagnostic."
             )
             st.session_state.messages.append({"role": "user", "content": premier_msg})
