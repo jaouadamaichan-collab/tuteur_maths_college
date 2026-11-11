@@ -262,3 +262,95 @@ def test_espace_prof_vue_par_eleve(base):
     assert "🏁" in ligne["Badges"]
     detail = " ".join(m.value for m in at.markdown)
     assert "**Réussis :** 6 / 6" in detail and "Badges gagnés" in detail
+
+
+# ───────────── Étape 4 : exercice modèle photographié (ADR 0002) ─────────────
+
+def _png():
+    import io
+    from PIL import Image
+    sortie = io.BytesIO()
+    Image.new("RGB", (900, 600), "white").save(sortie, format="PNG")
+    return sortie.getvalue()
+
+
+def _choisir_photo(at):
+    at.text_input[0].input("Inès")
+    at.selectbox[0].set_value("4ème").run()
+    at.selectbox[1].set_value("📸 Un exercice fait en classe (photo)").run()
+    ok(at)
+
+
+def _lire(at, octets=None):
+    at.file_uploader[0].set_value(("exo.png", octets or _png(), "image/png")).run()
+    bouton(at, "🔍 Lire l'exercice").click().run()
+    ok(at)
+
+
+def test_photo_lue_verifiee_puis_seance_de_variantes(base):
+    at = lancer()
+    _choisir_photo(at)
+    assert any("jamais enregistrée" in c.value for c in at.caption)
+    _lire(at)
+    # La photo est oubliée : plus de champ photo, seul le texte lu reste, et l'élève peut le corriger
+    assert len(at.file_uploader) == 0
+    lecture = at.session_state["lecture"]
+    assert not any(isinstance(v, bytes) for v in lecture.values())
+    champ = at.text_area(key="transcription")
+    assert champ.value == FauxClaude.LECTURE["transcription"]
+    corrige = champ.value.replace("10 cm", "10 cm (génératrice)")
+    champ.input(corrige).run()
+    at.select_slider[0].set_value("15 min").run()
+    bouton(at, "🚀 Commencer").click().run()
+    ok(at)
+    s = at.session_state["seance"]
+    assert s["profil"]["modele"] == corrige and s["profil"]["chapitre"] == "📸 hauteur et volume du cône"
+    assert "lecture" not in at.session_state
+    assert corrige in appels_de("écrire UN exercice")[0]["messages"][0]["content"]
+    for n in range(6):
+        repondre_juste(at)
+        bouton(at, "Voir mon bilan" if n == 5 else "Exercice suivant").click().run()
+        ok(at)
+    assert any("refais ton exercice de classe" in m.value for m in at.markdown)
+    # Enregistré : la transcription confirmée, jamais l'image
+    ligne = base.tables["sessions_college"][0]
+    assert json.loads(ligne["messages"])["modele"] == corrige
+    assert len(json.dumps(ligne, ensure_ascii=False)) < 20_000 and "base64" not in json.dumps(ligne)
+    # L'espace prof montre la transcription
+    at.sidebar.radio[0].set_value(at.sidebar.radio[0].options[1]).run()
+    at.text_input[0].input("prof2024").run()
+    ok(at)
+    assert any(corrige in t.value for t in at.text)
+
+
+def test_photo_sans_lecture_on_ne_demarre_pas(base):
+    at = lancer()
+    _choisir_photo(at)
+    bouton(at, "🚀 Commencer").click().run()
+    assert any("Lire l'exercice" in w.value for w in at.warning)
+    assert at.session_state["seance"] is None and FauxClaude.appels == []
+
+
+@pytest.mark.parametrize("lecture, octets, message", [
+    ({"lisible": False, "maths": True, "transcription": "", "notion": ""}, None, "reprends la photo"),
+    ({"lisible": True, "maths": False, "transcription": "Liste de courses", "notion": ""}, None, "ne semble pas montrer un exercice de maths"),
+    (None, b"pas une image", "pas une photo lisible"),
+])
+def test_photo_refusee_explique_quoi_faire(base, lecture, octets, message):
+    if lecture:
+        FauxClaude.lecture = lecture
+    at = lancer()
+    _choisir_photo(at)
+    _lire(at, octets)
+    assert any(message in w.value for w in at.warning)
+    assert "lecture" not in at.session_state
+    assert at.file_uploader[0].key == "photo_1" and at.file_uploader[0].value is None   # champ vidé, on peut réessayer
+
+
+def test_autre_photo_efface_la_lecture(base):
+    at = lancer()
+    _choisir_photo(at)
+    _lire(at)
+    bouton(at, "📸 Prendre une autre photo").click().run()
+    ok(at)
+    assert "lecture" not in at.session_state and len(at.file_uploader) == 1
