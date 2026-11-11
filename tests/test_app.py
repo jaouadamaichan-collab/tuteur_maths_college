@@ -38,6 +38,9 @@ def base(monkeypatch):
     import anthropic
     import supabase
 
+    import streamlit as st
+
+    st.cache_resource.clear()            # le client Supabase est mis en cache entre les exécutions
     db = FauxSupabase()
     FauxAnthropic.appels = []
     monkeypatch.setattr(anthropic, "Anthropic", FauxAnthropic)
