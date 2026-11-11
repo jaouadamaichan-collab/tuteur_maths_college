@@ -360,3 +360,17 @@ def test_autre_photo_efface_la_lecture(base):
     bouton(at, "📸 Prendre une autre photo").click().run()
     ok(at)
     assert "lecture" not in at.session_state and len(at.file_uploader) == 1
+
+
+def test_exercice_vide_affiche_reessayer_au_lieu_de_planter(base):
+    """Bug vu en production : exercice vide sans message d'erreur → TypeError à l'affichage."""
+    at = lancer()
+    demarrer(at)
+    s = at.session_state["seance"]
+    s["exercice"], s["erreur"] = None, None
+    at.run()
+    ok(at)
+    assert any("Réessaie" in e.value for e in at.error)
+    bouton(at, "Réessayer").click().run()
+    ok(at)
+    assert at.session_state["seance"]["exercice"] is not None

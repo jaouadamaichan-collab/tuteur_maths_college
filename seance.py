@@ -68,6 +68,9 @@ def preparer_exercice(s: dict, cle_api: str) -> None:
         except T.TuteurIndisponible as ex:
             s["erreur"] = f"Le tuteur ne répond pas pour le moment ({ex}). Réessaie dans un instant."
             return
+        except Exception:  # filet de sécurité : jamais d'exercice vide sans message (sinon l'écran plante)
+            s["erreur"] = "Un problème est survenu en préparant l'exercice. Réessaie."
+            return
     s["erreur"] = "Le tuteur n'a pas réussi à préparer un exercice valable. Réessaie."
 
 

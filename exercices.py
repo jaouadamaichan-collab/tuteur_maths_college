@@ -82,10 +82,12 @@ def evaluer_calcul(expression: str) -> float:
 
     try:
         valeur = ev(arbre)
+    except ExerciceInvalide:
+        raise
     except (ZeroDivisionError, ValueError, OverflowError) as ex:
         raise ExerciceInvalide(f"Calcul impossible : {expression}") from ex
-    if not math.isfinite(valeur):
-        raise ExerciceInvalide("Calcul non fini")
+    if isinstance(valeur, complex) or not math.isfinite(valeur):   # ex. (-8)**(1/3) donne un complexe en Python
+        raise ExerciceInvalide("Calcul sans résultat réel")
     return valeur
 
 
@@ -159,7 +161,7 @@ def valider_exercice(brut: dict, format_attendu: str) -> dict:
         ex["bonne_option"] = bonne
     elif f == "numerique":
         arrondi = brut.get("arrondi", "dixième")
-        if arrondi not in ARRONDIS:
+        if not isinstance(arrondi, str) or arrondi not in ARRONDIS:
             raise ExerciceInvalide(f"Arrondi inconnu : {arrondi}")
         reponse = brut.get("reponse")
         if not isinstance(reponse, (int, float)) or isinstance(reponse, bool):

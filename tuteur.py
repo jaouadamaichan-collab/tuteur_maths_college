@@ -208,10 +208,12 @@ def generer_exercice(cle_api: str, profil: dict, format_: str, rang: int, niveau
             return ex
         except (ExerciceInvalide, FigureInvalide, ValueError, json.JSONDecodeError) as ex:
             derniere_erreur = str(ex)
-            messages += [
-                {"role": "assistant", "content": texte},
-                {"role": "user", "content": f"Exercice refusé par l'application : {derniere_erreur}. Corrige et renvoie uniquement le JSON complet."},
-            ]
+        except Exception as ex:  # réponse de forme imprévue : on la traite comme un exercice invalide, jamais un plantage
+            derniere_erreur = f"réponse mal formée ({type(ex).__name__})"
+        messages += [
+            {"role": "assistant", "content": texte},
+            {"role": "user", "content": f"Exercice refusé par l'application : {derniere_erreur}. Corrige et renvoie uniquement le JSON complet."},
+        ]
     raise ExerciceInvalide(derniere_erreur or "exercice invalide")
 
 
