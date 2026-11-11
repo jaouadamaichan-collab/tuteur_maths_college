@@ -185,10 +185,6 @@ CSS = """
 [data-testid="stSidebar"] * {
     color: #e2e8f0 !important;
 }
-[data-testid="stSidebar"] .stTextInput input,
-[data-testid="stSidebar"] .stTextArea textarea {
-    color: #1e293b !important;
-}
 [data-testid="stSidebar"] .stSelectbox label,
 [data-testid="stSidebar"] .stTextInput label,
 [data-testid="stSidebar"] .stTextArea label {
@@ -197,13 +193,25 @@ CSS = """
     text-transform: uppercase;
     letter-spacing: 0.05em;
 }
-[data-testid="stSidebar"] .stSelectbox > div > div,
-[data-testid="stSidebar"] .stTextInput > div > div > input,
-[data-testid="stSidebar"] .stTextArea > div > div > textarea {
+[data-testid="stSidebar"] .stSelectbox > div > div {
     background: rgba(255,255,255,0.08) !important;
     border: 1px solid rgba(255,255,255,0.15) !important;
     color: #f1f5f9 !important;
     border-radius: 0.5rem;
+}
+/* Champs de saisie : texte foncé sur fond blanc. Streamlit enveloppe le champ dans un cadre blanc :
+   un texte clair y devient invisible. -webkit-text-fill-color est nécessaire sur Chrome/Safari. */
+[data-testid="stSidebar"] .stTextInput input,
+[data-testid="stSidebar"] .stTextArea textarea {
+    background: #ffffff !important;
+    color: #1e293b !important;
+    -webkit-text-fill-color: #1e293b !important;
+    caret-color: #1e293b !important;
+}
+[data-testid="stSidebar"] .stTextInput input::placeholder,
+[data-testid="stSidebar"] .stTextArea textarea::placeholder {
+    color: #94a3b8 !important;
+    -webkit-text-fill-color: #94a3b8 !important;
 }
 [data-testid="stSidebar"] hr {
     border-color: rgba(255,255,255,0.1) !important;
