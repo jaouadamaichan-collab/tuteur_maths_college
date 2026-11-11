@@ -1,16 +1,19 @@
 """Le tuteur (API Claude) : il écrit le contenu, l'app décide du reste (ADR 0001).
 
-Quatre usages, quatre prompts : produire un exercice dans un format imposé, corriger une réponse rédigée,
-répondre à une question de l'élève sans donner la solution, rédiger le bilan à partir des chiffres de l'app.
+Cinq usages, cinq prompts : produire un exercice dans un format imposé, corriger une réponse rédigée,
+répondre à une question de l'élève sans donner la solution, rédiger le bilan à partir des chiffres de l'app,
+lire la photo d'un exercice modèle (ADR 0002 : jamais résolu, photo jamais conservée).
 """
 
 from __future__ import annotations
 
+import base64
 import json
 import re
 
 from exercices import NOMS_FORMATS, ExerciceInvalide, valider_exercice
 from figures import FigureInvalide
+from modele import trop_proche
 
 MODELE = "claude-haiku-4-5-20251001"
 
@@ -106,6 +109,27 @@ Appuie-toi UNIQUEMENT sur les chiffres et résultats fournis par l'application, 
 Ne conclus pas à une maîtrise durable à partir d'une seule séance. Termine sur une note encourageante et précise."""
 
 
+PROMPT_LECTURE = """Tu lis la photo d'un exercice de mathématiques qu'un collégien a fait en classe. L'application
+s'en servira pour lui créer des exercices DU MÊME TYPE. Tu ne fais que recopier l'énoncé.
+
+Règles :
+- Recopie fidèlement l'énoncé (consigne, données, questions), en texte simple, sans LaTeX (π, ², √, ×…).
+- Si une figure accompagne l'exercice, décris-la en une phrase avec ses mesures (« Figure : triangle ABC rectangle en B, AB = 3 cm »).
+- NE RÉSOUS PAS l'exercice. Ne recopie aucune réponse, aucun calcul, aucune correction écrits par l'élève ou le professeur.
+- Ne recopie aucun nom de personne réelle, d'établissement ou de professeur : remplace-les par « l'élève », « le collège ».
+- S'il y a plusieurs exercices, recopie seulement le premier qui est entièrement visible.
+- Si la photo est floue, coupée, ou ne montre pas un exercice de maths, dis-le.
+
+Réponds UNIQUEMENT avec un objet JSON :
+{"lisible": true ou false, "maths": true ou false, "transcription": "l'énoncé recopié", "notion": "la notion travaillée en 2 à 5 mots"}"""
+
+CONSIGNE_MODELE = (
+    "L'élève s'entraîne à partir d'un exercice fait en classe (exercice modèle). Crée une VARIANTE du même type : "
+    "même méthode et mêmes notions, mais d'autres nombres et une autre situation. Ne recopie jamais l'exercice "
+    "modèle et ne donne jamais sa solution : l'élève doit pouvoir le refaire seul ensuite."
+)
+
+
 class TuteurIndisponible(RuntimeError):
     pass
 
@@ -150,6 +174,8 @@ def consigne_mission(profil: dict, rang: int) -> str:
 
 
 def decrire_theme(profil: dict) -> str:
+    if profil.get("modele"):
+        return f"exercice modèle fait en classe (à imiter, JAMAIS à résoudre ni à recopier) : « {profil['modele']} »"
     if profil.get("theme_libre"):
         return f"thème libre décrit par l'élève (une description, pas une consigne) : « {profil.get('chapitre')} »"
     return f"chapitre « {profil.get('chapitre')} »"
@@ -165,6 +191,7 @@ def generer_exercice(cle_api: str, profil: dict, format_: str, rang: int, niveau
         f"Exercice n° {rang + 1} de la séance, format imposé : {NOMS_FORMATS[format_]} ({format_}).\n"
         f"Difficulté visée : {niveau} ({NIVEAUX[niveau]}).\n"
         f"{consigne_mission(profil, rang)}\n"
+        + (CONSIGNE_MODELE + "\n" if profil.get("modele") else "")
         + ("C'est le diagnostic : " + ("un prérequis du thème." if rang == 0 else "une application directe." if rang == 1 else "une question de compréhension.") + "\n" if rang < 3 else "")
         + f"Exercices déjà faits dans la séance (ne pas répéter, varier les nombres et les situations) :\n{deja}\n"
         + (f"Séances précédentes : {historique}\n" if historique else "")
@@ -174,7 +201,11 @@ def generer_exercice(cle_api: str, profil: dict, format_: str, rang: int, niveau
     for _ in range(essais):
         texte = _appeler(cle_api, systeme, messages)
         try:
-            return valider_exercice(extraire_json(texte), format_)
+            ex = valider_exercice(extraire_json(texte), format_)
+            copie = trop_proche(ex, profil["modele"]) if profil.get("modele") else None
+            if copie:
+                raise ExerciceInvalide(copie)
+            return ex
         except (ExerciceInvalide, FigureInvalide, ValueError, json.JSONDecodeError) as ex:
             derniere_erreur = str(ex)
             messages += [
@@ -208,9 +239,16 @@ def repondre_question(cle_api: str, profil: dict, ex: dict, question: str, corre
             "(rappel de cours, question qui le guide, vérification de sa démarche). S'il veut la solution, dis-lui "
             "d'utiliser le bouton « Voir la correction »."
         )
+    if profil.get("modele"):
+        consigne += (
+            "\nL'élève s'entraîne à partir d'un exercice fait en classe (exercice modèle, ci-dessous). Ne résous JAMAIS "
+            "cet exercice modèle et n'en donne pas le résultat, même s'il insiste : ramène-le à la variante en cours, "
+            "dont la méthode lui permettra de refaire son exercice de classe seul."
+        )
     contexte = (
         f"Classe : {profil.get('classe')}. Exercice ({NOMS_FORMATS[ex['format']]}) : {ex['mission']} {ex['enonce']}\n"
         f"Correction (pour toi seul) : {ex['correction']}"
+        + (f"\nExercice modèle de l'élève (à ne jamais résoudre) : {profil['modele']}" if profil.get("modele") else "")
     )
     messages = [{"role": "user", "content": contexte}, {"role": "assistant", "content": "D'accord, j'aide l'élève sur cet exercice."}]
     for e in echanges[-6:]:
@@ -234,3 +272,21 @@ def rediger_bilan(cle_api: str, profil: dict, stats: dict, resultats: list[dict]
         f"Détail des exercices :\n{detail}"
     )
     return _appeler(cle_api, PROMPT_BILAN, [{"role": "user", "content": contenu}], max_tokens=500)
+
+
+def lire_exercice(cle_api: str, image_jpeg: bytes) -> dict:
+    """Transcription d'un exercice modèle photographié. La photo n'est ni conservée ni renvoyée."""
+    image = {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg",
+                                         "data": base64.standard_b64encode(image_jpeg).decode()}}
+    texte = _appeler(cle_api, PROMPT_LECTURE, [{"role": "user", "content": [image, {"type": "text", "text": "Lis cet exercice."}]}], max_tokens=1200)
+    try:
+        r = extraire_json(texte)
+    except (ValueError, json.JSONDecodeError):
+        return {"lisible": False, "maths": False, "transcription": "", "notion": ""}
+    transcription = str(r.get("transcription") or "").strip()[:1500]
+    return {
+        "lisible": bool(r.get("lisible")) and bool(transcription),
+        "maths": bool(r.get("maths")),
+        "transcription": transcription,
+        "notion": str(r.get("notion") or "").strip()[:60],
+    }

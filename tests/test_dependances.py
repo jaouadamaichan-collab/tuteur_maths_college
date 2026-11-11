@@ -6,7 +6,7 @@ from pathlib import Path
 
 RACINE = Path(__file__).resolve().parent.parent
 LOCAUX = {p.stem for p in RACINE.glob("*.py")}
-NOMS_PAQUETS = {"streamlit": "streamlit", "anthropic": "anthropic", "supabase": "supabase", "matplotlib": "matplotlib"}
+NOMS_PAQUETS = {"streamlit": "streamlit", "anthropic": "anthropic", "supabase": "supabase", "matplotlib": "matplotlib", "PIL": "pillow"}
 
 
 def test_imports_couverts_par_requirements():

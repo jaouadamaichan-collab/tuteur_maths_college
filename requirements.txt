@@ -2,3 +2,4 @@ streamlit>=1.40
 anthropic>=0.40
 supabase>=2.0
 matplotlib>=3.8
+pillow>=10.0

@@ -14,8 +14,10 @@ import streamlit as st
 
 import ecran
 import exercices as E
+import modele as M
 import progression as P
 import seance as S
+import tuteur as T
 from tuteur import CENTRES_INTERET
 
 # ════════════════════════════════════════════════════════════
@@ -76,6 +78,8 @@ CHAPITRES = {
 
 # Option ajoutée à chaque liste : l'élève décrit lui-même son thème.
 AUTRE_THEME = "✏️ Autre thème (je l'écris)"
+# Et l'exercice modèle : l'élève photographie un exercice fait en classe (ADR 0002).
+PHOTO_THEME = "📸 Un exercice fait en classe (photo)"
 
 PAYS_PROGRAMMES = [
     "France (Éducation Nationale)",
@@ -365,7 +369,8 @@ def sauvegarder_seance(s):
         "phase_finale": "bilan",
         "bilan": s["bilan"] or "",
         "messages": json.dumps({"resultats": s["resultats"], "stats": s["stats"], "points": s["points"],
-                                "badges": s["badges_nouveaux"], "interets": profil.get("interets", [])}, ensure_ascii=False),
+                                "badges": s["badges_nouveaux"], "interets": profil.get("interets", []),
+                                "modele": profil.get("modele") or ""}, ensure_ascii=False),
         "date_session": datetime.now().isoformat(),
     }
     try:
@@ -439,6 +444,53 @@ def resume_historique(sessions):
 # ════════════════════════════════════════════════════════════
 # 🤖  CLÉ API (Claude) — le tuteur lui-même est dans tuteur.py
 # ════════════════════════════════════════════════════════════
+
+def zone_photo():
+    """Exercice modèle (ADR 0002) : photo → lecture par le tuteur → transcription vérifiée par l'élève.
+    La photo n'est jamais enregistrée : après lecture, le champ est vidé et seul le texte est gardé.
+    Renvoie (transcription confirmée, libellé du thème), ou ("", "") tant qu'il n'y en a pas."""
+    lecture = st.session_state.get("lecture")
+    if lecture is None:
+        st.caption("🔒 Ta photo sert seulement à lire l'exercice : elle n'est jamais enregistrée. "
+                   "Cadre juste l'énoncé, sans ton nom ni ton visage.")
+        n = st.session_state.get("_photo_n", 0)
+        fichier = st.file_uploader("📸 Photo de l'exercice fait en classe", type=M.TYPES_ACCEPTES, key=f"photo_{n}")
+        message = st.session_state.pop("_photo_message", None)
+        if message:
+            st.warning(message)
+        if fichier is not None and st.button("🔍 Lire l'exercice", use_container_width=True):
+            octets = fichier.getvalue()
+            st.session_state["_photo_n"] = n + 1      # nouveau champ au prochain affichage : la photo est oubliée
+            try:
+                image = M.preparer_image(octets)
+                with st.spinner("🔍 Le tuteur lit ton exercice…"):
+                    r = T.lire_exercice(get_api_key() or "", image)
+            except M.PhotoIllisible as ex:
+                st.session_state["_photo_message"] = f"📸 {ex}"
+            except T.TuteurIndisponible:
+                st.session_state["_photo_message"] = "Le tuteur ne répond pas pour le moment. Réessaie dans un instant."
+            else:
+                if not r["lisible"]:
+                    st.session_state["_photo_message"] = "📸 Je n'arrive pas à lire l'exercice : reprends la photo bien à plat, nette et en entier."
+                elif not r["maths"]:
+                    st.session_state["_photo_message"] = "📸 Cette photo ne semble pas montrer un exercice de maths."
+                else:
+                    st.session_state.lecture = r
+            finally:
+                del octets
+            st.rerun()
+        return "", ""
+    st.markdown("**✅ Vérifie le texte lu par le tuteur** : corrige-le s'il s'est trompé.")
+    texte = st.text_area("Ton exercice de classe", value=lecture["transcription"], height=150, max_chars=1500,
+                         key="transcription").strip()
+    st.caption("Le tuteur va t'entraîner sur des exercices du même type, avec d'autres nombres. "
+               "Il ne fera pas ton exercice à ta place : à la fin, c'est toi qui le refais !")
+    if st.button("📸 Prendre une autre photo"):
+        st.session_state.pop("lecture", None)
+        st.session_state.pop("transcription", None)
+        st.rerun()
+    return texte, f"📸 {lecture['notion'] or 'Exercice de classe'}"
+
 
 def get_api_key():
     try:
@@ -523,6 +575,9 @@ def afficher_dashboard_prof():
                 notions = stats.get("notions_difficiles") or []
                 if difficiles or notions:
                     st.markdown("**À surveiller :** " + " · ".join(difficiles + notions))
+            if contenu.get("modele"):
+                st.markdown("**📸 Exercice modèle (transcription) :**")
+                st.text(contenu["modele"])
             if contenu.get("badges"):
                 st.markdown("**Badges gagnés :** " + " · ".join(P.libelle(b) for b in contenu["badges"] if b in P.BADGES))
             if bilan:
@@ -663,8 +718,12 @@ def main():
             c1, c2 = st.columns(2)
             nom = c1.text_input("👤 Ton prénom", placeholder="Ex: Sarah")
             classe = c2.selectbox("📚 Classe", list(CHAPITRES.keys()))
-            chapitre = st.selectbox("📖 Chapitre", CHAPITRES.get(classe, []) + [AUTRE_THEME])
+            chapitre = st.selectbox("📖 Chapitre", CHAPITRES.get(classe, []) + [PHOTO_THEME, AUTRE_THEME])
             theme_libre = chapitre == AUTRE_THEME
+            par_photo = chapitre == PHOTO_THEME
+            modele = ""
+            if par_photo:
+                modele, chapitre = zone_photo()
             if theme_libre:
                 chapitre = st.text_area(
                     "✏️ Ton thème",
@@ -696,6 +755,9 @@ def main():
         if btn_start and theme_libre and not chapitre:
             st.warning("✏️ Écris ton thème dans le champ « Ton thème », puis relance la séance.")
             btn_start = False
+        if btn_start and par_photo and not modele:
+            st.warning("📸 Ajoute la photo de ton exercice et clique sur « Lire l'exercice », puis relance la séance.")
+            btn_start = False
 
         if btn_start:
             profil = {
@@ -703,6 +765,7 @@ def main():
                 "classe": classe, "programme": programme,
                 "chapitre": chapitre,
                 "theme_libre": theme_libre,
+                "modele": modele,
                 "interets": interets,
                 "objectif": objectif or "Réviser et progresser",
                 "temps": temps,
@@ -712,6 +775,8 @@ def main():
                 S.preparer_exercice(seance, get_api_key())
             st.session_state.seance = seance
             st.session_state.pop("_ballons_montres", None)
+            st.session_state.pop("lecture", None)
+            st.session_state.pop("transcription", None)
             st.rerun()
 
         st.markdown("")

@@ -184,6 +184,11 @@ def bilan(s: dict) -> None:
     if s["badges_nouveaux"]:
         st.success("Nouveaux badges : " + " · ".join(f"**{P.libelle(b)}**" for b in s["badges_nouveaux"]))
     st.info(brut(s["bilan"]))
+    if s["profil"].get("modele"):
+        # ADR 0002 : le tuteur n'a jamais résolu l'exercice de classe ; c'est maintenant à l'élève de le refaire.
+        st.markdown("#### 📸 À toi de jouer : refais ton exercice de classe")
+        st.caption("Tu viens de t'entraîner sur la même méthode. Reprends-le seul, sans regarder les corrections.")
+        st.text(s["profil"]["modele"])
     with st.expander(f"🏅 Ma collection de badges ({len(S.badges(s))} sur {len(P.BADGES)})"):
         for b, (emoji, nom, comment) in P.BADGES.items():
             if b in S.badges(s):
