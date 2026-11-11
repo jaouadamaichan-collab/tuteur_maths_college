@@ -83,6 +83,13 @@ def repondre_juste(at):
     return f
 
 
+def test_trois_facons_de_choisir_le_theme_visibles_a_l_accueil(base):
+    at = lancer()
+    modes = at.button_group(key="mode_theme")
+    assert [o.strip() for o in modes.options] == ["Un chapitre", "Mon exercice de classe", "Un autre thème"]   # emojis affichés en icônes
+    assert modes.value == "📖 Un chapitre" and any(s.label == "📖 Chapitre" for s in at.selectbox)
+
+
 def test_seance_complete_carte_de_jeu(base):
     at = lancer()
     demarrer(at, duree="30 min")                                       # 10 exercices
@@ -176,9 +183,8 @@ def test_sans_base_valide_l_espace_prof_explique_quoi_faire(base, secrets):
 
 def _choisir_theme_libre(at, classe):
     at.selectbox[0].set_value(classe).run()
-    options = at.selectbox[1].options
-    assert options[-1] == "✏️ Autre thème (je l'écris)"
-    at.selectbox[1].set_value(options[-1]).run()
+    at.button_group(key="mode_theme").set_value("✏️ Un autre thème").run()
+    assert not any(s.label == "📖 Chapitre" for s in at.selectbox)       # plus de liste de chapitres
     ok(at)
     return next(t for t in at.text_area if "Ton thème" in t.label)
 
@@ -277,7 +283,7 @@ def _png():
 def _choisir_photo(at):
     at.text_input[0].input("Inès")
     at.selectbox[0].set_value("4ème").run()
-    at.selectbox[1].set_value("📸 Un exercice fait en classe (photo)").run()
+    at.button_group(key="mode_theme").set_value("📸 Mon exercice de classe").run()
     ok(at)
 
 
