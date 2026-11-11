@@ -5,13 +5,20 @@ conservé dans st.session_state par l'écran, et chaque action est une fonction 
 from __future__ import annotations
 
 import exercices as E
+import progression as P
 import tuteur as T
 
 
-def nouvelle_seance(profil: dict, historique: str = "") -> dict:
+def nouvelle_seance(profil: dict, historique: str = "", progression: dict | None = None) -> dict:
+    """progression : cumul des séances précédentes de l'élève (voir progression.cumul)."""
+    progression = progression or {}
     return {
         "profil": profil,
         "historique": historique,
+        "points_avant": int(progression.get("points") or 0),
+        "badges_avant": list(progression.get("badges") or []),
+        "badges_nouveaux": [],   # gagnés pendant cette séance
+        "a_feter": [],           # nouveaux badges pas encore annoncés à l'écran
         "nb_total": E.nombre_exercices(profil.get("temps", "30 min")),
         "rang": 0,
         "niveau": "moyen",
@@ -86,6 +93,24 @@ def _reussite(s: dict, partiel: bool = False) -> None:
         "correction_vue": s["correction_vue"], "essais": s["essais"], "points": gain + bonus, "enonce": ex["enonce"],
     })
     s["retour"] = {"ok": True, "gain": gain, "bonus": bonus, "texte": s["retour"]["texte"] if s.get("retour") else ""}
+    _attribuer_badges(s)
+
+
+def _attribuer_badges(s: dict, seance_complete: bool = False) -> list[str]:
+    obtenus = P.badges_obtenus(s["resultats"], s["serie"], seance_complete)
+    gagnes = P.nouveaux(s["badges_avant"] + s["badges_nouveaux"], obtenus)
+    s["badges_nouveaux"] += gagnes
+    s["a_feter"] += gagnes
+    return gagnes
+
+
+def total_points(s: dict) -> int:
+    return s["points_avant"] + s["points"]
+
+
+def badges(s: dict) -> list[str]:
+    """Collection complète de l'élève, dans l'ordre du catalogue."""
+    return [b for b in P.BADGES if b in s["badges_avant"] or b in s["badges_nouveaux"]]
 
 
 def repondre(s: dict, reponse) -> bool:
@@ -154,6 +179,7 @@ def exercice_suivant(s: dict, cle_api: str, sauvegarder=None) -> None:
 def terminer(s: dict, cle_api: str, sauvegarder=None) -> None:
     """Bilan : chiffres calculés par l'app, rédaction par le tuteur, sauvegarde."""
     s["termine"] = True
+    _attribuer_badges(s, seance_complete=len(s["resultats"]) >= s["nb_total"])
     s["stats"] = E.statistiques(s["resultats"])
     if not s["resultats"]:
         s["bilan"] = "Séance arrêtée avant le premier exercice : pas de bilan cette fois."

@@ -9,7 +9,7 @@ from __future__ import annotations
 import copy
 from datetime import datetime, timezone
 
-AUTO_ID = {"runs", "evenements", "signaux", "liens", "hypotheses_versions", "briefs", "feedbacks"}
+AUTO_ID = {"sessions_college", "runs", "evenements", "signaux", "liens", "hypotheses_versions", "briefs", "feedbacks"}
 UNIQUES = {"signaux": [("url_norm",)], "liens": [("signal_id", "hypothese_id")], "briefs": [("semaine",)]}
 DEFAUTS = {
     "signaux": {"trie": False, "hors_radar": False, "questions": [], "reprise_de": None, "pertinent": None, "score": None, "echiquier": None, "resume": None},
