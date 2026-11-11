@@ -148,6 +148,8 @@ def zone_retour(s: dict, cle_api: str, sauvegarder) -> None:
 
 def carte(s: dict, cle_api: str, sauvegarder) -> None:
     compteurs(s)
+    if s["exercice"] is None and not s["erreur"]:   # préparation interrompue : on propose de réessayer
+        s["erreur"] = "L'exercice n'a pas pu être préparé. Réessaie."
     if s["erreur"]:
         st.error(s["erreur"])
         if st.button("Réessayer", type="primary"):

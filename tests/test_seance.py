@@ -6,7 +6,7 @@ import pytest
 import exercices as E
 import seance as S
 import tuteur as T
-from tests.banque import bonne_reponse
+from tests.banque import bonne_reponse, exercice
 from tests.faux_claude import FauxClaude, appels_de
 
 PROFIL = {"nom": "Inès", "classe": "4ème", "programme": "France", "chapitre": "Pyramides et cônes (volumes)", "theme_libre": False, "objectif": "contrôle", "temps": "15 min"}
@@ -135,3 +135,39 @@ def test_redaction_partielle_et_fausse():
     assert not S.rediger(s, "k", "je sais pas") and s["serie"] == 0
     FauxClaude.verdict_redaction = "partiel"
     assert S.rediger(s, "k", "oui") and s["points"] == 5
+
+
+# ───────────── Robustesse : jamais d'écran planté si la réponse du tuteur est imprévue ─────────────
+
+def test_calcul_complexe_refuse():
+    with pytest.raises(E.ExerciceInvalide):
+        E.evaluer_calcul("(-8)**(1/3)")
+
+
+def test_arrondi_de_forme_imprevue_refuse():
+    brut = exercice("numerique")
+    brut["arrondi"] = ["dixième"]
+    with pytest.raises(E.ExerciceInvalide):
+        E.valider_exercice(brut, "numerique")
+
+
+def test_erreur_imprevue_pendant_la_preparation_donne_un_message(monkeypatch):
+    def boum(*a, **k):
+        raise KeyError("imprévu")
+    monkeypatch.setattr(T, "generer_exercice", boum)
+    s = S.nouvelle_seance(PROFIL, "")
+    S.preparer_exercice(s, "k")
+    assert s["exercice"] is None and "Réessaie" in s["erreur"]
+
+
+def test_reponse_mal_formee_redemandee(monkeypatch):
+    vrai = E.valider_exercice
+    appels = []
+    def valider(brut, f):
+        appels.append(f)
+        if len(appels) == 1:
+            raise TypeError("forme imprévue")
+        return vrai(brut, f)
+    monkeypatch.setattr(T, "valider_exercice", valider)
+    ex = T.generer_exercice("k", PROFIL, "qcm", 0, "facile", [])
+    assert ex["format"] == "qcm" and len(appels) == 2
