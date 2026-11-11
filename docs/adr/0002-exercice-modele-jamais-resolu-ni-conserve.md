@@ -1,0 +1,3 @@
+# Un exercice modèle photographié n'est jamais résolu par le tuteur ni conservé
+
+L'élève peut photographier un exercice fait en classe pour s'entraîner sur des exercices du même type. Pour que l'app ne devienne pas une machine à faire les devoirs, le tuteur ne résout jamais l'exercice photographié : il en crée des variantes (autres nombres, autre habillage) et n'en explique la méthode qu'après une tentative de l'élève sur une variante. Les élèves étant mineurs, la photo est seulement transmise au tuteur pour lecture et n'est jamais enregistrée ; seule la transcription confirmée par l'élève est conservée.
