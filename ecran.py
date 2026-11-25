@@ -26,15 +26,8 @@ def _image_figure(cle: str, figure: dict) -> bytes:
 
 def compteurs(s: dict) -> None:
     blocs = (("⭐ Points", s["points"]), ("🔥 Série", s["serie"]), ("🏅 Badges", len(S.badges(s))))
-    st.markdown(
-        "<div style='display:flex;gap:.6rem;flex-wrap:nowrap;margin-bottom:.4rem'>"
-        + "".join(
-            "<div style='flex:1;background:#f1f5f9;border-radius:.8rem;padding:.45rem;text-align:center'>"
-            f"<div style='font-size:1.55rem;font-weight:800;color:#1e3a5f'>{v}</div>"
-            f"<div style='font-size:.75rem;color:#64748b'>{lib}</div></div>"
-            for lib, v in blocs
-        )
-        + "</div>",
+    st.markdown(   # styles .compteurs : feuille de style de app.py
+        "<div class='compteurs'>" + "".join(f"<div><b>{v}</b><span>{lib}</span></div>" for lib, v in blocs) + "</div>",
         unsafe_allow_html=True,
     )
     fait = min(s["rang"] + (1 if s["reussi"] else 0), s["nb_total"])

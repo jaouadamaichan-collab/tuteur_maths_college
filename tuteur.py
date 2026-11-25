@@ -158,6 +158,46 @@ def extraire_json(texte: str):
     return json.loads(texte[debut : fin + 1])
 
 
+PROMPT_CARTES = SOCLE + """
+
+Ta tâche : écrire des flashcards de révision (une question au recto, la réponse au verso) sur le chapitre indiqué,
+pour la classe indiquée. L'élève les retourne et s'évalue lui-même : la réponse doit donc être sûre et sans ambiguïté.
+
+Règles :
+- Une seule notion par carte. Recto : une question courte et précise (pas de « Parle-moi de… »).
+- Verso : la réponse en 1 ou 2 phrases au plus, avec l'unité quand c'est une grandeur (« Aire du disque : π × r², en cm² »).
+- Varie les types : définition, propriété ou théorème, formule, méthode (« Pour comparer deux fractions, je… »),
+  calcul rapide, figure à lire ou à reconnaître.
+- Pas deux cartes sur la même question. Respecte le niveau de la classe.
+- "figure" : null, ou une figure qui sert la question (ex. un triangle rectangle pour « Quelle égalité donne le
+  théorème de Pythagore ici ? », un cône pour « Quelle est la formule de son volume ? »). La réponse ne doit pas y figurer.
+{figures}
+
+Réponds UNIQUEMENT avec un objet JSON :
+{{"cartes": [{{"recto": "...", "verso": "...", "figure": null}}, ...]}}"""
+
+
+def generer_cartes(cle_api: str, profil: dict, nombre: int, deja: list[str] | None = None) -> list[dict]:
+    """Flashcards validées pour le chapitre du profil ; réessaie une fois si la réponse est inutilisable."""
+    from flashcards import CartesInvalides, valider_cartes
+
+    demande = (f"Classe : {profil.get('classe')}. Programme : {profil.get('programme', 'France')}.\n"
+               f"Thème : {decrire_theme(profil)}.\nNombre de cartes : {nombre}.")
+    if deja:
+        demande += "\nNe reprends pas ces questions déjà vues : " + " | ".join(deja[:20])
+    messages = [{"role": "user", "content": demande}]
+    systeme = PROMPT_CARTES.format(figures=FIGURES.replace('"figure": null, OU une figure cotée si elle aide vraiment (géométrie, mesures). ', ""))
+    for essai in range(2):
+        texte = _appeler(cle_api, systeme, messages, max_tokens=3000)
+        try:
+            return valider_cartes(extraire_json(texte))
+        except (CartesInvalides, ValueError, json.JSONDecodeError) as ex:
+            erreur = str(ex)
+        messages += [{"role": "assistant", "content": texte},
+                     {"role": "user", "content": f"Cartes refusées : {erreur}. Renvoie uniquement le JSON complet."}]
+    raise TuteurIndisponible("Le tuteur n'a pas réussi à écrire les cartes.")
+
+
 CENTRES_INTERET = ("⚽ Sport", "🎮 Jeux vidéo", "🍳 Cuisine", "🎵 Musique", "🐾 Animaux", "🚀 Espace", "🎬 Films et séries", "👗 Mode", "🌳 Nature", "✈️ Voyages")
 
 

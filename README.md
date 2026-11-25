@@ -6,6 +6,8 @@ Tuteur de mathématiques pour collégiens (6ᵉ à 3ᵉ), avec un parcours perso
 
 ## Fonctionnalités
 
+- 🏠 **Tableau de bord** : série de jours, objectif du jour (10 exercices), séance recommandée sur le chapitre le plus fragile, dernières séances à refaire, page « Ma progression »
+- 🃏 **Flashcards** : par défaut sur le thème de la dernière séance (ou une autre thématique) ; l'élève retourne chaque carte et note « Je savais » ou « À revoir » ; les cartes à revoir sont gardées
 - 🃏 **Carte de jeu** : un exercice par écran, points, série et progression visibles (choisie par les élèves, voir `PROTOTYPE.md` sur la branche `prototype/ecran-exercice`)
 - 🔀 **Six formats en rotation** : QCM, réponse numérique, vrai ou faux, texte à trous, étapes dans l'ordre, et une réponse rédigée environ une fois sur cinq. Jamais deux fois le même format d'affilée.
 - 📐 **Figures cotées dessinées par l'app** : cône, cylindre, triangle rectangle, pavé, pyramide, cercle, droite dans un repère

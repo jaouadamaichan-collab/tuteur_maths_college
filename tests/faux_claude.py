@@ -18,7 +18,8 @@ class FauxClaude:
     indisponible = False
     lecture = {"lisible": True, "maths": True, "notion": "hauteur et volume du cône",
                "transcription": "Un cône a pour rayon 6 cm et pour génératrice 10 cm. Calcule sa hauteur, puis son volume arrondi au cm³."}
-    copies = 0                  # nombre d'exercices qui recopient l'exercice modèle avant un exercice correct
+    copies = 0                   # nombre d'exercices qui recopient l'exercice modèle avant un exercice correct
+    cartes_invalides = 0         # réponses inutilisables avant de bonnes flashcards
 
     def __init__(self, api_key=None):
         self.messages = self
@@ -26,7 +27,7 @@ class FauxClaude:
     @classmethod
     def reinitialiser(cls):
         cls.appels, cls.defaillances, cls.verdict_redaction, cls.indisponible = [], {}, "juste", False
-        cls.lecture, cls.copies = dict(FauxClaude.LECTURE), 0
+        cls.lecture, cls.copies, cls.cartes_invalides = dict(FauxClaude.LECTURE), 0, 0
 
     def create(self, **kw):
         assert "temperature" not in kw, "paramètre refusé par l'API en production"
@@ -50,12 +51,27 @@ class FauxClaude:
             return Reponse("Pense à la formule du volume : aire de la base × hauteur.")
         if "Tu lis la photo" in systeme:
             return Reponse(json.dumps(FauxClaude.lecture, ensure_ascii=False))
+        if "écrire des flashcards" in systeme:
+            if FauxClaude.cartes_invalides > 0:
+                FauxClaude.cartes_invalides -= 1
+                return Reponse('{"cartes": [{"recto": "?", "verso": ""}]}')
+            return Reponse(json.dumps({"cartes": CARTES}, ensure_ascii=False))
         if "rédiger le bilan" in systeme:
             return Reponse("Bilan : tu maîtrises le volume du cylindre. Continue !")
         raise AssertionError("prompt inattendu : " + systeme[:80])
 
 
 FauxClaude.LECTURE = dict(FauxClaude.lecture)
+
+CARTES = [
+    {"recto": "Quelle est la formule de l'aire d'un disque de rayon r ?", "verso": "A = π × r².", "figure": None},
+    {"recto": "Que vaut 3² + 4² ?", "verso": "25, c'est-à-dire 5².", "figure": None},
+    {"recto": "Quelle égalité donne le théorème de Pythagore dans ce triangle ?", "verso": "AC² = AB² + BC².",
+     "figure": {"type": "triangle_rectangle", "ab": 3, "bc": 4, "ac": None, "unite": "cm"}},
+    {"recto": "Quelle est la formule du volume de ce cône ?", "verso": "V = π × r² × h ÷ 3.",
+     "figure": {"type": "cone", "r": 3, "h": 4, "g": None, "unite": "cm"}},
+    {"recto": "Comment simplifier une fraction ?", "verso": "Diviser le numérateur et le dénominateur par un même nombre.", "figure": None},
+]
 
 
 def appels_de(tache: str) -> list:

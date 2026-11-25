@@ -86,3 +86,59 @@ def cumul(seances: list[dict]) -> dict:
         "taux_sans_aide": round(100 * sans_aide / exercices) if exercices else None,
         "formats_difficiles": [f for f, _ in formats_difficiles.most_common(2)],
     }
+
+
+# ───────────── Tableau de bord de l'élève : série de jours, objectif du jour, séance recommandée ─────────────
+
+OBJECTIF_JOUR = 10   # exercices par jour pour valider sa journée
+
+
+def _jour(ligne: dict) -> str:
+    return str(ligne.get("date_session") or "")[:10]
+
+
+def jours_de_suite(seances: list[dict], aujourd_hui: str) -> tuple[int, bool]:
+    """(nombre de jours d'affilée avec au moins une séance, la journée d'aujourd'hui est-elle déjà faite ?).
+    Une série reste en cours tant que l'élève a travaillé hier : il peut la continuer aujourd'hui."""
+    from datetime import date, timedelta
+
+    jours = {_jour(s) for s in seances if _jour(s)}
+    jour = date.fromisoformat(aujourd_hui)
+    fait_aujourd_hui = aujourd_hui in jours
+    if not fait_aujourd_hui:
+        jour -= timedelta(days=1)
+    n = 0
+    while jour.isoformat() in jours:
+        n += 1
+        jour -= timedelta(days=1)
+    return n, fait_aujourd_hui
+
+
+def exercices_du_jour(seances: list[dict], aujourd_hui: str) -> int:
+    return sum(int((lire_contenu(s).get("stats") or {}).get("exercices") or s.get("nb_exercices") or 0)
+               for s in seances if _jour(s) == aujourd_hui)
+
+
+def recommandation(seances: list[dict], chapitres: list[str]) -> dict | None:
+    """Chapitre à travailler : celui de la classe où l'élève réussit le moins sans aide (sous 80 %), sinon le
+    premier chapitre pas encore travaillé, sinon celui travaillé il y a le plus longtemps."""
+    if not chapitres:
+        return None
+    par_chapitre: dict = {}
+    for s in seances:   # de la plus récente à la plus ancienne
+        ch = s.get("chapitre")
+        if ch in chapitres:
+            stats = lire_contenu(s).get("stats") or {}
+            d = par_chapitre.setdefault(ch, {"exercices": 0, "sans_aide": 0, "dernier": _jour(s)})
+            d["exercices"] += int(stats.get("exercices") or 0)
+            d["sans_aide"] += int(stats.get("sans_aide") or 0)
+    fragiles = [(round(100 * d["sans_aide"] / d["exercices"]), ch) for ch, d in par_chapitre.items() if d["exercices"]]
+    fragiles = [f for f in fragiles if f[0] < 80]
+    if fragiles:
+        taux, ch = min(fragiles)
+        return {"chapitre": ch, "raison": f"À consolider : {taux} % de réussite sans aide"}
+    for ch in chapitres:
+        if ch not in par_chapitre:
+            return {"chapitre": ch, "raison": "Pas encore travaillé"}
+    ch = min(par_chapitre, key=lambda c: par_chapitre[c]["dernier"])
+    return {"chapitre": ch, "raison": "À revoir pour ne pas oublier"}
