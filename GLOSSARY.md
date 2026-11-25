@@ -95,3 +95,14 @@ _Avoid_ : inventaire, palmarès
 **Réussite sans aide** :
 La part des exercices réussis sans indice ni correction ; l'indicateur d'autonomie suivi par le prof.
 _Avoid_ : taux de réussite, score d'autonomie
+
+## Flashcards
+
+**Flashcard** :
+Une carte de révision écrite par le tuteur : une question au recto, la réponse courte au verso, parfois une figure. L'élève la retourne et s'évalue lui-même.
+_Avoid_ : fiche, carte mémoire, exercice
+
+**Carte à revoir** :
+Une flashcard dont la dernière note de l'élève est « À revoir ». Elle repasse une fois en fin de série, et reste dans la pile « à revoir » d'une séance à l'autre jusqu'à ce qu'il la note « Je savais ».
+_Avoid_ : erreur, carte ratée
+
